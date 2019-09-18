@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Techno Titans Attendance</title>
+</head>
+<body>
+
+<video autoplay></video>
+<div>
+    <input type="radio" id="in" name="traffic" value="in" checked>
+    <label for="in">Sign-In</label>
+    <input type="radio" id="out" name="traffic" value="out">
+    <label for="out">Sign-Out</label>
+    <br/>
+    <input type="radio" id="workspace" name="location" value="workspace" checked>
+    <label for="workspace">Workspace</label>
+    <input type="radio" id="school" name="location" value="school">
+    <label for="school">School</label>
+</div>
+<!--<button id="reset">Reset</button>-->
+<!--<button id="stop">Stop</button>-->
+<script src="bower_components/qcode-decoder/build/qcode-decoder.min.js"></script>
+<device type="media" onchange="update(this.data)"></device>
+<video autoplay></video>
+<script type="text/javascript">
+    (function () {
+        'use strict';
+        const constraints = {
+            video: true
+        };
+        var video = document.querySelector('video');
+        navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+            video.srcObject = stream;
+            video.play();
+        });
+
+        var qr = new QCodeDecoder();
+
+        function resultHandler(err, result) {
+            if (err)
+                return console.log(err.message);
+            alert(result);
+        }
+
+        qr.decodeFromCamera(video, resultHandler);
+        // qr.decodeFromCamera(video, resultHandler);
+    })();
+</script>
+</body>
+</html>
