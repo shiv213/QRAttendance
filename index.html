@@ -2,11 +2,14 @@
 <html lang="en">
 <head>
     <title>Techno Titans Attendance</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.1/build/pure-min.css"
+          integrity="sha384-oAOxQR6DkCoMliIh8yFnu25d7Eq/PHS21PClpwjOTeU2jRSq11vu66rf90/cZr47" crossorigin="anonymous">
 </head>
 <body>
-
-<video autoplay></video>
-<div>
+<h1 style="text-align: center">Techno Titans Attendance</h1>
+<h2 style="text-align: center">Scan QR tag:</h2>
+<div style="text-align: center">
     <input type="radio" id="in" name="traffic" value="in" checked>
     <label for="in">Sign-In</label>
     <input type="radio" id="out" name="traffic" value="out">
@@ -17,43 +20,132 @@
     <input type="radio" id="school" name="location" value="school">
     <label for="school">School</label>
 </div>
-<!--<button id="reset">Reset</button>-->
-<!--<button id="stop">Stop</button>-->
-<script src="bower_components/qcode-decoder/build/qcode-decoder.min.js"></script>
-<device type="media" onchange="update(this.data)"></device>
-<video autoplay></video>
-<script type="text/javascript">
-    (function () {
-        'use strict';
-        const constraints = {
-            video: true
-        };
-        var video = document.querySelector('video');
-        // navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
-        //     video.srcObject = stream;
-        //     video.play();
-        // });
+<br/>
+<div id="loadingMessage">🎥 Unable to access video stream (please make sure you have a webcam enabled)</div>
+<div id="output" hidden>
+    <div id="outputMessage">No QR code detected.</div>
+    <div hidden><b>Data:</b> <span id="outputData"></span></div>
+    <br/>
+</div>
+<canvas style="padding: 0; margin: auto; display: block; width: 800px; overflow: hidden;" id="canvas" hidden></canvas>
 
-// Get access to the camera!
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            // Not adding `{ audio: true }` since we only want video now
-            navigator.mediaDevices.getUserMedia({video: true}).then(function (stream) {
-                //video.src = window.URL.createObjectURL(stream);
-                video.srcObject = stream;
+<!-- The core Firebase JS SDK is always required and must be listed first -->
+<!--<script src="/__/firebase/6.6.1/firebase-app.js"></script>-->
+<script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/6.6.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/6.6.1/firebase-database.js"></script>
+<!-- TODO: Add SDKs for Firebase products that you want to use
+     https://firebase.google.com/docs/web/setup#reserved-urls -->
+<!--<script src="/__/firebase/init.js"></script>-->
+
+<script src="js/jsQR.js"></script>
+<script>
+    var firebaseConfig = {
+        apiKey: "AIzaSyDC6TPL0pHBbfYChXclleiiL4VtvYe8wFc",
+        authDomain: "attendance-system-1683.firebaseapp.com",
+        databaseURL: "https://attendance-system-1683.firebaseio.com",
+        projectId: "attendance-system-1683",
+        storageBucket: "attendance-system-1683.appspot.com",
+        messagingSenderId: "327283754136",
+        appId: "1:327283754136:web:4416535904c06b87123ced"
+    };
+
+    // // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    var video = document.createElement("video");
+    var canvasElement = document.getElementById("canvas");
+    var canvas = canvasElement.getContext("2d");
+    var loadingMessage = document.getElementById("loadingMessage");
+    var outputContainer = document.getElementById("output");
+    var outputMessage = document.getElementById("outputMessage");
+    var outputData = document.getElementById("outputData");
+
+    function drawLine(begin, end, color) {
+        canvas.beginPath();
+        canvas.moveTo(begin.x, begin.y);
+        canvas.lineTo(end.x, end.y);
+        canvas.lineWidth = 4;
+        canvas.strokeStyle = color;
+        canvas.stroke();
+    }
+
+    function confirmPush(code) {
+        var txt;
+        var traffic = $('input[name=traffic]:checked').val();
+        var location = $('input[name=location]:checked').val();
+
+        var r = confirm(code.data + ' going ' + traffic + ' @' + location);
+        if (r) {
+            txt = code.data + ' ' + traffic + ' @' + location;
+            let date = (new Date()).toLocaleDateString('en-US');
+            date = date.replace(/\//g, '-');
+            let timestamp = new Date(Date.now()).toLocaleString().slice(-11);
+            const ref = database.ref('/members/' + date + "/" + code.data);
+            ref.once('value').then(function (snapshot) {
+                const update = {};
+                // snapshot.forEach(function (snapshot) {
+                //     const data = snapshot.val();
+                //     console.log("DATA: ", data);
+                //     console.log(typeof data);
+                // });
+                // console.log(snapshot.val());
+                // var traffic = $('#traffic').val()
+                update['/members/' + date + '/' + code.data + '/' + traffic] = timestamp + ' @' + location;
+                database.ref().update(update).catch(function (error) {
+                    console.log('Failed to send data: ', error);
+                });
+                // console.log(firebase.database().ref('members/'));
                 video.play();
+                requestAnimationFrame(tick);
             });
+        } else {
+            txt = "You pressed Cancel!";
+            video.play();
+            requestAnimationFrame(tick);
         }
-        var qr = new QCodeDecoder();
+        console.log(txt);
+    }
 
-        function resultHandler(err, result) {
-            if (err)
-                return console.log(err.message);
-            alert(result);
+    navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}}).then(function (stream) {
+        video.srcObject = stream;
+        video.setAttribute("playsinline", true); // required to tell iOS safari we don't want fullscreen
+        video.play();
+        requestAnimationFrame(tick);
+    });
+
+    function tick() {
+        loadingMessage.innerText = "⌛ Loading video..."
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            loadingMessage.hidden = true;
+            canvasElement.hidden = false;
+            outputContainer.hidden = false;
+
+            canvasElement.height = video.videoHeight;
+            canvasElement.width = video.videoWidth;
+            canvas.drawImage(video, 0, 0, canvasElement.width / 2, canvasElement.height / 2);
+            var imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+            var code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "dontInvert",
+            });
+            if (code) {
+                drawLine(code.location.topLeftCorner, code.location.topRightCorner, "#FF3B58");
+                drawLine(code.location.topRightCorner, code.location.bottomRightCorner, "#FF3B58");
+                drawLine(code.location.bottomRightCorner, code.location.bottomLeftCorner, "#FF3B58");
+                drawLine(code.location.bottomLeftCorner, code.location.topLeftCorner, "#FF3B58");
+                outputMessage.hidden = true;
+                outputData.parentElement.hidden = false;
+                outputData.innerText = code.data;
+                console.log(code);
+                confirmPush(code);
+            } else {
+                outputMessage.hidden = false;
+                outputData.parentElement.hidden = true;
+            }
         }
-
-        qr.decodeFromCamera(video, resultHandler);
-        // qr.decodeFromCamera(video, resultHandler);
-    })();
+        requestAnimationFrame(tick);
+    }
 </script>
 </body>
 </html>
